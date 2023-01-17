@@ -139,7 +139,7 @@ class BiasedMNIST(MNIST):
 
 
     def __len__(self):
-        return len(self.data_new_paths)
+        return len(self.data_new)
 
     def __getitem__(self, index: int):
         """
