@@ -10,6 +10,7 @@ from numpy.random import default_rng
 from copy import deepcopy
 from torchvision.transforms import ToTensor
 from sklearn.model_selection import train_test_split
+from pytorch_grad_cam import XGradCAM
 
 class TrainBaseERM:
     def __init__(self,device):
@@ -125,6 +126,23 @@ class TrainBaseERM:
             shuffle=False,
             num_workers=1
         )
+
+
+    #####
+    
+    def mask_data(self, test_loader,erm_checkpoint_path: str=None):
+      heat_map_generator = XGradCAM(
+            model=self.model,
+            target_layers=[self.model.module.get_grad_cam_target_layer()],
+            use_cuda=self.args.use_cuda,
+        )
+        
+      for data in tqdm(test_loader):
+        i1,i2,i3 = data[0],data[1],data[2]
+        hm = heat_map_generator(i1)
+      return hm
+    ###]]
+
 
     #Function used to run an epoch (train, validation or test)
     def run_an_epoch(self, data_loader, epoch, mode="train", device='cpu'):
