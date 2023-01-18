@@ -185,7 +185,7 @@ class TrainBaseERM:
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            resume_epoch = checkpoint['epoch']
+            resume_epoch = checkpoint['epoch'] + 1
 
             checkpoint = torch.load("best_erm_model.pt")
             self.best_accuracy=checkpoint['accuracy']

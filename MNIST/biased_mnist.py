@@ -46,6 +46,10 @@ class BiasedMNIST(MNIST):
         self.data_new=[]
         self.data_new_paths=[]
 
+        filtered_target_idx = torch.cat(
+            [torch.where(self.targets == label)[0] for label in [0,1,2,3,4,5,6,7,8,9]])
+        self.data,self.targets=self.data[filtered_target_idx], self.targets[filtered_target_idx]
+
         #modifico label: [0,1,2,3,4] -> 0  [5,6,7,8,9] -> 1
         self.targets = self.modify_labels()
         self.elem_in_class_zero = torch.count_nonzero(self.targets).item()
@@ -72,15 +76,15 @@ class BiasedMNIST(MNIST):
                 Image.fromarray(data.numpy().astype(np.uint8)).save(
                     os.path.join(self.img_data_dir, f"{id}.png")
                 )
-                self.data_new_paths.append(os.path.join(self.img_data_dir, f"{id}.png"))
+                self.data_new_paths.append(os.path.join(self.img_data_dir,f"{id}.png"))
        
         #create variables data_new e data_new_paths
         self.data_new=[]
         self.data_new_paths=[]
         
-        image_file_paths = glob(
+        image_file_paths = sorted(glob(
             os.path.join(self.img_data_dir, "*")
-        )
+        ))
         self.data_new_paths += image_file_paths
         for image_path in image_file_paths:
           temp = Image.open(image_path)
