@@ -130,17 +130,61 @@ class TrainBaseERM:
 
     #####
     
-    def mask_data(self, test_loader,erm_checkpoint_path: str=None):
+    def mask_data(self, train_loader,erm_checkpoint_path: str=None):
       heat_map_generator = XGradCAM(
             model=self.model,
             target_layers=[self.model.get_grad_cam_target_layer()],
             use_cuda=True,
         )
+      
+      self.masked_dataset = deepcopy(self.train_dataset)
+      masked_data_dir = self.train_dataset.img_data_dir.replace("train", "masked")
+      if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
+        os.makedirs(masked_data_dir, exist_ok=True)
+
+        counter_imgs = 0
+        for data in tqdm(train_loader):
+          # Creazione Heat-Map
+          i1,i2,i3 = data[0],data[1],data[2]
+          hm = heat_map_generator(i1)
+          
+          # Creazione Maschera
+          mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+          mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+          mask_threshold_value = mask_mean_value + 2 * mask_std_value
+          masks = np.where(hm > mask_threshold_value, 0, 1)
+
+          # Applicazione Maschera su immagini del batch
+          # for img in data:
+          #   actual_img = 
+          for image,mask in zip(data[0],masks):
+            masked_images = image*mask
+            Image.fromarray(masked_images.numpy().astype(np.uint8)).save(
+                    os.path.join(masked_data_dir, f"{counter_imgs}.png")
+                )
+            counter_imgs += 1
+
+          # for id, (data, target) in enumerate(zip(self.data_new, self.targets)):
+          #       Image.fromarray(data.numpy().astype(np.uint8)).save(
+          #           os.path.join(self.img_data_dir, f"{id}.png")
+          #       )
+          #       self.data_new_paths.append(os.path.join(self.img_data_dir,f"{id}.png"))
+      
+      #create variables data_new e data_new_paths
+      data_new=[]
+      data_new_paths=[]
         
-      for data in tqdm(test_loader):
-        i1,i2,i3 = data[0],data[1],data[2]
-        hm = heat_map_generator(i1)
-      return hm
+      image_file_paths = sorted(glob(
+          os.path.join(masked_data_dir, "*")
+      ))
+      data_new_paths += image_file_paths
+      for image_path in image_file_paths:
+        temp = Image.open(image_path)
+        keep = temp.copy()
+        data_new.append(keep)
+        temp.close()
+      self.masked_dataset.data_new=data_new
+      self.masked_dataset.data_new_paths=data_new_paths
     ###]]
 
 
