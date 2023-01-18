@@ -134,7 +134,7 @@ class TrainBaseERM:
       heat_map_generator = XGradCAM(
             model=self.model,
             target_layers=[self.model.get_grad_cam_target_layer()],
-            use_cuda=self.args.use_cuda,
+            use_cuda=True,
         )
         
       for data in tqdm(test_loader):
