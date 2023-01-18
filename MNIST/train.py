@@ -142,38 +142,39 @@ class TrainBaseERM:
       if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
         os.makedirs(masked_data_dir, exist_ok=True)
 
-        counter_imgs = 0
-        for data in tqdm(train_loader):
-          # Creazione Heat-Map
-          i1,i2,i3 = data[0],data[1],data[2]
-          hm = heat_map_generator(i1)
+      counter_imgs = 0
+      #maskedimg = torch.empty(1,3,28,28)
+      for data in tqdm(train_loader):
+        # Creazione Heat-Map per batch
+        i1,i2,i3 = data[0],data[1],data[2]
+        hm = heat_map_generator(i1)
+        
+        # Creazione Maschera
+        mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+        mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+        mask_threshold_value = mask_mean_value + 2 * mask_std_value
+        masks = np.where(hm > mask_threshold_value, 0, 1)
+
+        # Applicazione Maschera su immagini del batch
+                
+        for image,mask in zip(data[0],masks):
           
-          # Creazione Maschera
-          mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
-          mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
-          mask_threshold_value = mask_mean_value + 2 * mask_std_value
-          masks = np.where(hm > mask_threshold_value, 0, 1)
-
-          # Applicazione Maschera su immagini del batch
-          # for img in data:
-          #   actual_img = 
-          for image,mask in zip(data[0],masks):
-            masked_images = image*mask
-            Image.fromarray(masked_images.numpy().astype(np.uint8)).save(
-                    os.path.join(masked_data_dir, f"{counter_imgs}.png")
-                )
-            counter_imgs += 1
-
-          # for id, (data, target) in enumerate(zip(self.data_new, self.targets)):
-          #       Image.fromarray(data.numpy().astype(np.uint8)).save(
-          #           os.path.join(self.img_data_dir, f"{id}.png")
-          #       )
-          #       self.data_new_paths.append(os.path.join(self.img_data_dir,f"{id}.png"))
-      
+          masked_images = image*mask
+          
+          #maskedimg = torch.cat((maskedimg, masked_images[None,:]))
+          
+          ### PROBLEMI PROBLEMI per Sciarl###
+          ### Se non transponi le assi del tensore errore ###
+          Image.fromarray(masked_images.transpose(0,1).transpose(1,2).numpy().astype(np.uint8)).save(
+            os.path.join(masked_data_dir, f"{counter_imgs}.png")
+          )
+          counter_imgs += 1
+          
+      print(counter_imgs)
       #create variables data_new e data_new_paths
       data_new=[]
-      data_new_paths=[]
-        
+      data_new_paths=[]      
+      
       image_file_paths = sorted(glob(
           os.path.join(masked_data_dir, "*")
       ))
