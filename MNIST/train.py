@@ -133,7 +133,7 @@ class TrainBaseERM:
     def mask_data(self, test_loader,erm_checkpoint_path: str=None):
       heat_map_generator = XGradCAM(
             model=self.model,
-            target_layers=[self.model.get_grad_cam_target_layer()],
+            target_layers=[self.model.module.get_grad_cam_target_layer()],
             use_cuda=self.args.use_cuda,
         )
         
