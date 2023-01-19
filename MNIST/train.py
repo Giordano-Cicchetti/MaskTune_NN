@@ -5,36 +5,43 @@ from model import *
 from others import *
 from biased_mnist import *
 import math 
-import shutil
-from numpy.random import default_rng
 from copy import deepcopy
 from torchvision.transforms import ToTensor
 from sklearn.model_selection import train_test_split
 from pytorch_grad_cam import XGradCAM
+from torchvision.utils import save_image
 
 class TrainBaseERM:
     def __init__(self,device):
-        #initialize all what is needed
+        #initialize all is needed
+        #DEVICE
         self.device       = device
+        #LOSS FUNCTION
         self.loss_function= nn.CrossEntropyLoss()
+        #MODEL
         self.model        = SmallCNN(2)
         self.model        = self.model.to(self.device)
+        #LOGGER
         self.logger       = Logger("", None)
-        #Optimizer
+        #OPTIMIZER
         self.optimizer    = optim.SGD(
                 self.model.parameters(),
                 lr=0.01,
                 momentum=0.9,
                 weight_decay=1e-4
             )
-        #Scheduler 
+        #SCHEDULER 
         self.lr_scheduler = optim.lr_scheduler.MultiStepLR(
                 optimizer=self.optimizer,
                 milestones=[25,50,75],
                 gamma= 0.5,
                 last_epoch=-1,
             )
-        #And now we can initialize all the datasets and dataloaders:
+        #And now we can initialize all the DATASETS and DATALOADERS:
+        self.initialize_datasets_loaders()
+
+
+    def initialize_datasets_loaders(self):
         #TRAIN DATASET
         self.train_dataset = BiasedMNIST(
                 root = 'data',
@@ -44,44 +51,13 @@ class TrainBaseERM:
             )
         #VALIDATION DATASET
         self.val_dataset = deepcopy(self.train_dataset)
-        val_data_dir = self.train_dataset.img_data_dir.replace("train", "val")
-        if not (os.path.isdir(val_data_dir) and len(os.listdir(val_data_dir)) > 0):
-            
-            os.makedirs(val_data_dir, exist_ok=True)
-            rng = default_rng()
-            val_indices = rng.choice(len(self.train_dataset), size=12000, replace=False)
-            for val_index in val_indices:
-                file_path = self.train_dataset.data_new_paths[val_index]
-                target = self.train_dataset.targets[val_index]
-                new_file_path = os.path.join(
-                    val_data_dir, f"{val_index}.png")
-                os.replace(file_path, new_file_path)
-            self.train_dataset.data_new=[]
-            self.train_dataset.data_new_paths=[]
-        
-            image_file_paths = glob(
-                os.path.join(self.train_dataset.img_data_dir, "*")
-            )
-            self.train_dataset.data_new_paths += image_file_paths
-            for image_path in image_file_paths:
-                temp = Image.open(image_path)
-                keep = temp.copy()
-                self.train_dataset.data_new.append(keep)
-                temp.close()
-
-        self.val_dataset.data_new=[]
-        self.val_dataset.data_new_paths=[]
-    
-        image_file_paths = glob(
-            os.path.join(val_data_dir, "*")
-        )
-        self.val_dataset.data_new_paths += image_file_paths
-        for image_path in image_file_paths:
-            temp = Image.open(image_path)
-            keep = temp.copy()
-            self.val_dataset.data_new.append(keep)
-            temp.close()           
-
+        X_train,X_val,y_train,y_val = train_test_split(self.train_dataset.data_new,
+                                                       self.train_dataset.targets,
+                                                       test_size=12000)
+        self.train_dataset.data_new=X_train
+        self.train_dataset.targets=y_train
+        self.val_dataset.data_new=X_val
+        self.val_dataset.targets=y_val
 
         #TEST DATASET WITH ORIGINAL DATA
         self.test_dataset_original = BiasedMNIST(
@@ -131,62 +107,72 @@ class TrainBaseERM:
     #####
     
     def mask_data(self, train_loader,erm_checkpoint_path: str=None):
-      heat_map_generator = XGradCAM(
+        heat_map_generator = XGradCAM(
             model=self.model,
             target_layers=[self.model.get_grad_cam_target_layer()],
             use_cuda=True,
         )
       
-      self.masked_dataset = deepcopy(self.train_dataset)
-      masked_data_dir = self.train_dataset.img_data_dir.replace("train", "masked")
-      if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
-        os.makedirs(masked_data_dir, exist_ok=True)
+        self.masked_dataset = deepcopy(self.train_dataset)
+        masked_data_dir = self.train_dataset.img_data_dir.replace("train", "masked")
+        if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
+            os.makedirs(masked_data_dir, exist_ok=True)
 
-      counter_imgs = 0
-      #maskedimg = torch.empty(1,3,28,28)
-      for data in tqdm(train_loader):
-        # Creazione Heat-Map per batch
-        i1,i2,i3 = data[0],data[1],data[2]
-        hm = heat_map_generator(i1)
+            counter_imgs = 0
+            #maskedimg = torch.empty(1,3,28,28)
+            for data in tqdm(train_loader):
+                # Creazione Heat-Map per batch
+                i1,i2,i3 = data[0],data[1],data[2]
+                hm = heat_map_generator(i1)
         
-        # Creazione Maschera
-        mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
-        mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
-        mask_threshold_value = mask_mean_value + 2 * mask_std_value
-        masks = np.where(hm > mask_threshold_value, 0, 1)
+                # Creazione Maschera
+                mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+                mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+                mask_threshold_value = mask_mean_value + 2 * mask_std_value
+                masks = np.where(hm > mask_threshold_value, 0, 1)
 
-        # Applicazione Maschera su immagini del batch
+                # Applicazione Maschera su immagini del batch
                 
-        for image,mask in zip(data[0],masks):
+                for image,mask in zip(data[0],masks):
           
-          masked_images = image*mask
+                    masked_images = image*mask
+                    masked_images.numpy()
+                    save_image(masked_images, os.path.join(masked_data_dir, f"{counter_imgs}.png"))
+                    #maskedimg = torch.cat((maskedimg, masked_images[None,:]))
+
+                    ### PROBLEMI PROBLEMI per Sciarl###
+                    ### Se non transponi le assi del tensore errore ###
+
+                    #Image.fromarray(masked_images.transpose(0,1).transpose(1,2).numpy().astype(np.uint8)).save(
+                    #  os.path.join(masked_data_dir, f"{counter_imgs}.png")
+                    #)
+                    counter_imgs += 1
           
-          #maskedimg = torch.cat((maskedimg, masked_images[None,:]))
-          
-          ### PROBLEMI PROBLEMI per Sciarl###
-          ### Se non transponi le assi del tensore errore ###
-          Image.fromarray(masked_images.transpose(0,1).transpose(1,2).numpy().astype(np.uint8)).save(
-            os.path.join(masked_data_dir, f"{counter_imgs}.png")
-          )
-          counter_imgs += 1
-          
-      print(counter_imgs)
-      #create variables data_new e data_new_paths
-      data_new=[]
-      data_new_paths=[]      
-      
-      image_file_paths = sorted(glob(
-          os.path.join(masked_data_dir, "*")
-      ))
-      data_new_paths += image_file_paths
-      for image_path in image_file_paths:
-        temp = Image.open(image_path)
-        keep = temp.copy()
-        data_new.append(keep)
-        temp.close()
-      self.masked_dataset.data_new=data_new
-      self.masked_dataset.data_new_paths=data_new_paths
-    ###]]
+        print(counter_imgs)
+        #create variables data_new e data_new_paths
+        data_new=[]
+        data_new_paths=[]      
+        
+        image_file_paths = sorted(glob(
+            os.path.join(masked_data_dir, "*")
+        ))
+        data_new_paths += image_file_paths
+        for image_path in image_file_paths:
+            temp = Image.open(image_path)
+            keep = temp.copy()
+            data_new.append(keep)
+            temp.close()
+        self.masked_dataset.data_new=data_new
+        self.masked_dataset.data_new_paths=data_new_paths
+
+        self.masked_loader= torch.utils.data.DataLoader(
+            self.masked_dataset,
+            batch_size=128,
+            shuffle=True,
+            num_workers=1
+        )
+
+    
 
 
     #Function used to run an epoch (train, validation or test)
@@ -288,18 +274,18 @@ class TrainBaseERM:
 
 
     def test(self, test_loader,checkpoint_path=None):
-        self.logger.info("-" * 10 + "testing the model" +
-                         "-" * 10, print_msg=True)
+        self.logger.info("-" * 10 + "testing the model" +"-" * 10, print_msg=True)
+        #LOAD THE MODEL SPECIFIED IN THE CHECKPOINT PATH
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         epoch = checkpoint['epoch']
+        #RUN AN EPOCH IN TEST MODE AND USING A TEST LOADER SPECIFIED AS INPUT
         accuracy = self.run_an_epoch(
             data_loader=test_loader, epoch=epoch, mode="test",device=self.device
         )
-
-        print(f"Test accuracy = {accuracy}")
+        self.logger.info("-" * 10 + f"Test accuracy= {accuracy}" +"-" * 10, print_msg=True)
         
 
             

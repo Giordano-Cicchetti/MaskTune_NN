@@ -8,20 +8,18 @@ from glob import glob
 class BiasedMNIST(MNIST):
     def __init__(
       self,
-      bias_conflicting_data_ratio=0.1,
       biased=False,
       **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.train = kwargs["train"]
- 
         self.biased=biased
         if kwargs["train"]:
             self.split = "train"
         else:
             self.split = "test"
 
-        #to do if su argomento biased
+        #SET THE DIRECTORY PATH BASED ON THE SITUATION: (Train,Test_original,Test_biased)
         if(self.split=="train"):
             self.img_data_dir = os.path.join(
                 kwargs["root"],
@@ -42,49 +40,51 @@ class BiasedMNIST(MNIST):
                 self.split,
                 "biased")
         
-        print(self.img_data_dir)
         self.data_new=[]
         self.data_new_paths=[]
-
+        #FILTER LABELS AND SORTING DATA ACCORDING TO ORIGINAL LABELS
         filtered_target_idx = torch.cat(
             [torch.where(self.targets == label)[0] for label in [0,1,2,3,4,5,6,7,8,9]])
         self.data,self.targets=self.data[filtered_target_idx], self.targets[filtered_target_idx]
 
-        #modifico label: [0,1,2,3,4] -> 0  [5,6,7,8,9] -> 1
+        #MODIFY LABELS: [0,1,2,3,4] -> 0  [5,6,7,8,9] -> 1
         self.targets = self.modify_labels()
+
         self.elem_in_class_zero = torch.count_nonzero(self.targets).item()
         self.elem_in_class_one = len(self.targets)-self.elem_in_class_zero
         
-        
-        #Se è la prima volta che creo questo dataset
+        #IF FIRST TIME THAT THE DATASET IS DOWNLOADED:
         if not (os.path.isdir(self.img_data_dir) and len(os.listdir(self.img_data_dir)) > 0):
             print(
                 f"\n\nstart creating and saving {self.split} dataset of BiasedMnist\n\n"
             )
             os.makedirs(self.img_data_dir, exist_ok=True)
             
-            #data_new conterrà le immagini di mnist ma in rgb oppure in rgb e biased 
+            #CREATE NEW DATA STARTING FROM ORIGINAL ONES 
             if(self.split=="train"):
-                self.data_new = self.add_bias_to_images(bias_ratio=0.01)
+                self.data_new = self.add_bias_to_images()
             elif(biased==False):
                 self.data_new = self.from_BlackWhite_to_RGB()
             else:
                 self.data_new = self.add_bias_to_images()
 
-            #bisogna salvare le nuove immagini per prenderle poi in un secondo momento
-            for id, (data, target) in enumerate(zip(self.data_new, self.targets)):
+            #SAVE NEW DATA IN A PROPER FOLDER IN ORDER TO BE REUSED IN THE FUTURE
+            for id, data in enumerate(self.data_new):
                 Image.fromarray(data.numpy().astype(np.uint8)).save(
                     os.path.join(self.img_data_dir, f"{id}.png")
                 )
                 self.data_new_paths.append(os.path.join(self.img_data_dir,f"{id}.png"))
        
+        print(
+                f"\n\nStart loading data of {self.split} dataset in main memory\n\n"
+        )
         #create variables data_new e data_new_paths
         self.data_new=[]
         self.data_new_paths=[]
         
-        image_file_paths = sorted(glob(
+        image_file_paths = glob(
             os.path.join(self.img_data_dir, "*")
-        ))
+        )
         self.data_new_paths += image_file_paths
         for image_path in image_file_paths:
           temp = Image.open(image_path)
