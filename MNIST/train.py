@@ -64,7 +64,7 @@ class TrainBaseERM:
             val_indices = rng.choice(len(self.train_dataset), size=12000, replace=False)
             for val_index in val_indices:
                 file_path = self.train_dataset.data_new_paths[val_index]
-                target = self.train_dataset.targets[val_index]
+                target = int(self.train_dataset.targets[val_index])
                 new_file_path = os.path.join(
                     val_data_dir, f"{val_index}{target}.png")
                 os.replace(file_path, new_file_path)
@@ -148,6 +148,7 @@ class TrainBaseERM:
     #####
     
     def mask_data(self, train_loader,erm_checkpoint_path: str=None):
+        
         heat_map_generator = XGradCAM(
             model=self.model,
             target_layers=[self.model.get_grad_cam_target_layer()],
@@ -174,11 +175,12 @@ class TrainBaseERM:
 
                 # Applicazione Maschera su immagini del batch
                 
-                for image,mask in zip(data[0],masks):
+                for image,mask,target in zip(data[0],masks,data[2]):
           
                     masked_images = image*mask
                     masked_images.numpy()
-                    save_image(masked_images, os.path.join(masked_data_dir, f"{counter_imgs}.png"))
+                    target=int(target)
+                    save_image(masked_images, os.path.join(masked_data_dir, f"{counter_imgs}{target}.png"))
                     #maskedimg = torch.cat((maskedimg, masked_images[None,:]))
 
                     ### PROBLEMI PROBLEMI per Sciarl###
@@ -193,16 +195,20 @@ class TrainBaseERM:
         #create variables data_new e data_new_paths
         data_new=[]
         data_new_paths=[]      
-        
-        image_file_paths = sorted(glob(
+        targets = []
+
+        image_file_paths = glob(
             os.path.join(masked_data_dir, "*")
-        ))
+        )
         data_new_paths += image_file_paths
         for image_path in image_file_paths:
             temp = Image.open(image_path)
             keep = temp.copy()
             data_new.append(keep)
             temp.close()
+            target=int(image_path.split(".")[-2][-1])
+            targets.append(target) 
+        self.masked_dataset.targets=torch.Tensor(targets)
         self.masked_dataset.data_new=data_new
         self.masked_dataset.data_new_paths=data_new_paths
 

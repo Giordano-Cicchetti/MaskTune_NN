@@ -70,6 +70,7 @@ class BiasedMNIST(MNIST):
 
             #SAVE NEW DATA IN A PROPER FOLDER IN ORDER TO BE REUSED IN THE FUTURE
             for id, (data,target) in enumerate(zip(self.data_new,self.targets)):
+                target = int(target)
                 Image.fromarray(data.numpy().astype(np.uint8)).save(
                     os.path.join(self.img_data_dir, f"{id}{target}.png")
                 )
