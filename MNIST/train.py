@@ -148,7 +148,7 @@ class TrainBaseERM:
                     #)
                     counter_imgs += 1
           
-        print(counter_imgs)
+        
         #create variables data_new e data_new_paths
         data_new=[]
         data_new_paths=[]      
