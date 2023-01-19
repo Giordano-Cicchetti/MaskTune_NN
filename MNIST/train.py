@@ -5,6 +5,7 @@ from model import *
 from others import *
 from biased_mnist import *
 import math 
+from numpy.random import default_rng
 from copy import deepcopy
 from torchvision.transforms import ToTensor
 from sklearn.model_selection import train_test_split
@@ -39,7 +40,11 @@ class TrainBaseERM:
             )
         #And now we can initialize all the DATASETS and DATALOADERS:
         self.initialize_datasets_loaders()
-
+    
+    def th_delete(self,tensor, indices):
+        mask = torch.ones(tensor.numel(), dtype=torch.bool)
+        mask[indices] = False
+        return tensor[mask]
 
     def initialize_datasets_loaders(self):
         #TRAIN DATASET
@@ -51,14 +56,50 @@ class TrainBaseERM:
             )
         #VALIDATION DATASET
         self.val_dataset = deepcopy(self.train_dataset)
-        X_train,X_val,y_train,y_val = train_test_split(self.train_dataset.data_new,
-                                                       self.train_dataset.targets,
-                                                       test_size=12000)
-        self.train_dataset.data_new=X_train
-        self.train_dataset.targets=y_train
-        self.val_dataset.data_new=X_val
-        self.val_dataset.targets=y_val
+        val_data_dir = self.train_dataset.img_data_dir.replace("train", "val")
+        if not (os.path.isdir(val_data_dir) and len(os.listdir(val_data_dir)) > 0):
+            
+            os.makedirs(val_data_dir, exist_ok=True)
+            rng = default_rng()
+            val_indices = rng.choice(len(self.train_dataset), size=12000, replace=False)
+            for val_index in val_indices:
+                file_path = self.train_dataset.data_new_paths[val_index]
+                target = self.train_dataset.targets[val_index]
+                new_file_path = os.path.join(
+                    val_data_dir, f"{val_index}{target}.png")
+                os.replace(file_path, new_file_path)
 
+            self.train_dataset.data_new=[]
+            self.train_dataset.data_new_paths=[]
+            self.train_dataset.targets=self.th_delete(self.train_dataset.targets,val_indices)
+
+
+            image_file_paths = glob(
+                os.path.join(self.train_dataset.img_data_dir, "*")
+            )
+            self.train_dataset.data_new_paths += image_file_paths
+            for image_path in image_file_paths:
+                temp = Image.open(image_path)
+                keep = temp.copy()
+                self.train_dataset.data_new.append(keep)
+                temp.close()
+
+        self.val_dataset.targets=[]
+        self.val_dataset.data_new=[]
+        self.val_dataset.data_new_paths=[]
+    
+        image_file_paths = glob(
+            os.path.join(val_data_dir, "*")
+        )
+        self.val_dataset.data_new_paths += image_file_paths
+        for image_path in image_file_paths:
+            temp = Image.open(image_path)
+            keep = temp.copy()
+            self.val_dataset.data_new.append(keep)
+            temp.close()  
+            target=int(image_path.split(".")[-2][-1])
+            self.val_dataset.targets.append(target)      
+        self.val_dataset.targets=torch.Tensor(self.val_dataset.targets)
         #TEST DATASET WITH ORIGINAL DATA
         self.test_dataset_original = BiasedMNIST(
                 root = 'data',
@@ -171,9 +212,7 @@ class TrainBaseERM:
             shuffle=True,
             num_workers=1
         )
-
-    
-
+        
 
     #Function used to run an epoch (train, validation or test)
     def run_an_epoch(self, data_loader, epoch, mode="train", device='cpu'):
@@ -285,7 +324,8 @@ class TrainBaseERM:
         accuracy = self.run_an_epoch(
             data_loader=test_loader, epoch=epoch, mode="test",device=self.device
         )
-        self.logger.info("-" * 10 + f"Test accuracy= {accuracy}" +"-" * 10, print_msg=True)
+        self.logger.info("-" * 10 + f"Test accuracy ={accuracy}" +"-" * 10, print_msg=True)
+
         
 
             

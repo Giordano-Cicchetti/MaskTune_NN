@@ -69,11 +69,11 @@ class BiasedMNIST(MNIST):
                 self.data_new = self.add_bias_to_images()
 
             #SAVE NEW DATA IN A PROPER FOLDER IN ORDER TO BE REUSED IN THE FUTURE
-            for id, data in enumerate(self.data_new):
+            for id, (data,target) in enumerate(zip(self.data_new,self.targets)):
                 Image.fromarray(data.numpy().astype(np.uint8)).save(
-                    os.path.join(self.img_data_dir, f"{id}.png")
+                    os.path.join(self.img_data_dir, f"{id}{target}.png")
                 )
-                self.data_new_paths.append(os.path.join(self.img_data_dir,f"{id}.png"))
+                self.data_new_paths.append(os.path.join(self.img_data_dir,f"{id}{target}.png"))
        
         print(
                 f"\n\nStart loading data of {self.split} dataset in main memory\n\n"
@@ -81,6 +81,7 @@ class BiasedMNIST(MNIST):
         #create variables data_new e data_new_paths
         self.data_new=[]
         self.data_new_paths=[]
+        targets=[]
         
         image_file_paths = glob(
             os.path.join(self.img_data_dir, "*")
@@ -91,6 +92,9 @@ class BiasedMNIST(MNIST):
           keep = temp.copy()
           self.data_new.append(keep)
           temp.close()
+          target=int(image_path.split(".")[-2][-1])
+          targets.append(target) 
+        self.targets=torch.Tensor(targets)
               
     #modify labels according to this map: [0,1,2,3,4]->0 [5,6,7,8,9]->1
     def modify_labels(self):
