@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from pytorch_grad_cam import XGradCAM
 from torchvision.utils import save_image
 
-class TrainBaseERM:
+class TrainMNIST:
     def __init__(self,device):
         #initialize all is needed
         #DEVICE
