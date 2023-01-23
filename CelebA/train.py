@@ -3,7 +3,7 @@ import torch.optim as optim
 from tqdm import tqdm
 from model import *
 from others import *
-from CelebA import *
+from CelebA import CelebADataset
 import math 
 import shutil
 from numpy.random import default_rng
@@ -30,14 +30,15 @@ class CelebATrain:
             )
         #LOGGER
         self.logger       = Logger("", None)
+    
+        # Datasets and Dataloaders
+        self.initialize_datasets_loaders()
+
         # Some settings needed for handling dataset images
-        orig_w = 178
-        orig_h = 218
-        orig_min_dim = min(orig_w, orig_h)
         target_resolution = (224, 224)
         self.transform_test = transforms.Compose([
-                    transforms.CenterCrop(orig_min_dim),
-                    transforms.Resize(target_resolution),
+                    transforms.CenterCrop(178),
+                    transforms.Resize(224),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                 ])
@@ -52,8 +53,8 @@ class CelebATrain:
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ])
         
-        # Datasets
-
+        
+    def initialize_datasets_loaders(self):
         ##### FORSE DOWNLOAD=FALSE, CHIEDERE A JAC #####
         self.train_dataset = CelebADataset(
                 # raw_data_path=self.args.dataset_dir,
@@ -149,7 +150,7 @@ class CelebATrain:
         return accuracies.avg
 
 
-#Function used to train the entire ResNet50 network for a certan number of epochs
+    #Function used to train the entire ResNet50 network for a certan number of epochs
     def train_erm(self,epochs=20, resume=False, best_resume_checkpoint_path: str=None, last_resume_checkpoint_path: str=None) -> None:
         resume_epoch = 0
         self.best_accuracy=-math.inf
@@ -173,12 +174,7 @@ class CelebATrain:
             val_accuracy = self.run_an_epoch(
                 data_loader=self.val_loader, epoch=current_epoch, mode="validation",device=self.device
             )
-            #Update the scheduler
-            self.lr_scheduler.step()
-            self.logger.info(
-                f"lr: {self.lr_scheduler.get_last_lr()[0]}",
-                print_msg=True
-            )
+
             torch.save({
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
@@ -197,6 +193,94 @@ class CelebATrain:
                 }, "best_erm_model.pt")
 
 
+    #function used to test the accuracy of the model against the CelebA dataset
+    def test(self, test_loader, checkpoint_path=None):
+        self.logger.info("-" * 10 + "testing the model" +"-" * 10, print_msg=True)
+        #LOAD THE MODEL SPECIFIED IN THE CHECKPOINT PATH
+        checkpoint = torch.load(checkpoint_path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        epoch = checkpoint['epoch']
+        #RUN AN EPOCH IN TEST MODE AND USING A TEST LOADER SPECIFIED AS INPUT
+        accuracy = self.test_groups_epoch(
+            data_loader=test_loader, epoch=epoch,device=self.device
+        )
+        self.logger.info("-" * 10 + f"Test accuracy ={accuracy}" +"-" * 10, print_msg=True)
+
+        
+
+    #function used to run an epoch and collect results of the model and calculate accuracies.
+    #Accuracies are calculated for each group 
+    def test_groups_epoch(self, data_loader, epoch, device="cpu"):
+        #nitialize data structures used for calcuylate accuracies
+        all_y_pred = []
+        all_confounders = []
+        all_labels = []
+
+        #set model il evaluation mode
+        self.model.eval()
+
+        
+        losses = AverageMeter()
+        with torch.set_grad_enabled(False):
+            progress_bar = tqdm(data_loader)
+            self.logger.info(
+                f"Test epoch: {epoch}"
+            )
+            for data in progress_bar:
+                progress_bar.set_description(f'Test epoch {epoch}')
+                #Take inputs and labels. In confounders it will goes gender informations:
+                #confonder_i-th=0 if male, 1 if female
+                X, y, confounders = data[0], data[2], data[3]
+                X, y = X.to(device), y.to(device)
+                #Inference step
+                y_pred = self.model(X)
+                #Loss calculation 
+                loss = self.loss_function(y_pred, y)
+                losses.update(loss.item(), X.size(0))
+                #Pass output digits through softmax layer to extract probabilities and so the most probable class
+                output_probabilities = F.softmax(y_pred, dim=1)
+                probabilities, predictions = output_probabilities.data.max(1)
+                all_y_pred.append(predictions.detach().cpu())
+                all_confounders.append(confounders)
+                all_labels.append(y.detach().cpu())
+                
+                progress_bar.set_postfix(
+                    {
+                        "loss": losses.avg,
+                    }
+                )
+        #Stack all predictions in a one dimension tensor. Same for confounders and labels
+        all_y_pred = torch.cat(all_y_pred)
+        all_confounders = torch.cat(all_confounders)
+        all_labels = torch.cat(all_labels)
+        #Create groups: 
+        groups = {
+            0:[], #group 0 is female with no blonde hair
+            1:[], #group 1 is female with blonde hair
+            2:[], #group 2 is male with no blonde hair
+            3:[], #group 3 is male with blonde hair
+        }
+        #Assign result of comparison between label and label_predicted in the propre group which input belong to
+        for confounder, label, y_pred in zip(all_confounders, all_labels, all_y_pred):
+            groups[2*confounder.item()+label.item()].append(label.item()==y_pred.item())
+
+        weighted_acc = 0
+        #Calculate accuracy for each group
+        accuracies = []
+        for group_id, group_predictions in groups.items():
+            accuracy = sum(group_predictions)/len(group_predictions)
+            accuracies.append(accuracy)
+            self.logger.info(
+                f"accuracy of group {group_id+1}: {accuracy}", print_msg=True
+            )
+            weighted_acc += accuracy*len(group_predictions)
+        weighted_acc /= len(all_y_pred)
+        self.logger.info(
+            f"average accuracy: {weighted_acc}", print_msg=True
+        )
+        return min(accuracies)
 
 
 
