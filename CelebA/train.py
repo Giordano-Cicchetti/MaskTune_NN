@@ -159,7 +159,7 @@ class CelebATrain:
             checkpoint = torch.load("last_erm_model.pt")
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             resume_epoch = checkpoint['epoch'] + 1
 
             checkpoint = torch.load("best_erm_model.pt")
@@ -180,7 +180,7 @@ class CelebATrain:
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
                 }, "last_erm_model.pt")
             if(val_accuracy>self.best_accuracy):
@@ -189,7 +189,7 @@ class CelebATrain:
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
                 }, "best_erm_model.pt")
 
@@ -201,7 +201,7 @@ class CelebATrain:
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         epoch = checkpoint['epoch']
         #RUN AN EPOCH IN TEST MODE AND USING A TEST LOADER SPECIFIED AS INPUT
         accuracy = self.test_groups_epoch(
