@@ -31,9 +31,6 @@ class CelebATrain:
         #LOGGER
         self.logger       = Logger("", None)
     
-        # Datasets and Dataloaders
-        self.initialize_datasets_loaders()
-
         # Some settings needed for handling dataset images
         target_resolution = (224, 224)
         self.transform_test = transforms.Compose([
@@ -52,6 +49,10 @@ class CelebATrain:
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ])
+            
+        # Datasets and Dataloaders
+        self.initialize_datasets_loaders()
+
         
         
     def initialize_datasets_loaders(self):
@@ -80,20 +81,20 @@ class CelebATrain:
         # Dataloaders
         self.train_loader = torch.utils.data.DataLoader(
                 self.train_dataset,
-                batch_size=32,
+                batch_size=128,
                 shuffle=True,
                 num_workers=1
             )
 
         self.val_loader = torch.utils.data.DataLoader(
                 self.val_dataset,
-                batch_size=32,
+                batch_size=128,
                 shuffle=False,
                 num_workers=1
             )
         self.test_loader = torch.utils.data.DataLoader(
                 self.test_dataset,
-                batch_size=32,
+                batch_size=128,
                 shuffle=False,
                 num_workers=1
             )
