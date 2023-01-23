@@ -1,4 +1,5 @@
 from torch.utils.data import Dataset
+from torchvision.datasets import CelebA
 from PIL import Image
 from tqdm import tqdm
 from glob import glob
@@ -12,7 +13,7 @@ import numpy as np
 
 data_split = {
     0: 'train',
-    1: 'val',
+    1: 'valid',
     2: 'test'
 }
 
@@ -24,19 +25,22 @@ class CelebADataset(CelebA):
         super().__init__(**kwargs)
         self.split = kwargs["split"]
 
+
         self.target_attribute = "Blond_Hair"
         self.transform = kwargs["transform"]
         self.confounder =  "Male"
-        self.data_path = {}
-        self.labels = {}
+        # self.split = split
+        # self.target_transform = target_transform
+        # self.return_confounder = return_confounder
+        # self.return_masked = False
+        self.data_path = []
+        # self.masked_data_path = []
+        self.labels = []
         self.confounders = {}
         self.split = kwargs["split"]
-        ### Da Definire ###
         self.raw_data_path = ''
-        ######
         self.root = kwargs["root"]
 
-        # Give a name to the dataset's folder
         if (self.split=="train"):
             self.img_data_dir = os.path.join(
                 kwargs["root"],
@@ -50,7 +54,8 @@ class CelebADataset(CelebA):
                 kwargs["root"],
                 self.split)
         
-        
+
+
         if not (os.path.isdir(self.img_data_dir) and len(os.listdir(self.img_data_dir)) > 0):
             print(
                 f"\n\nstart creating and saving {self.split} dataset of CelebA\n\n")
@@ -80,22 +85,27 @@ class CelebADataset(CelebA):
                 self.raw_data_path, 'list_eval_partition.csv'))
             partitions = partition_df['partition']
 
-            # Creo la cartella relativa al dataset
-            os.makedirs(self.img_data_dir, exist_ok=True)
+            for label in np.unique(labels):
+                os.makedirs(os.path.join(
+                    self.img_data_dir, str(label)), exist_ok=True)
 
 
             for image_id, label, confounder, partition in tqdm(zip(image_ids, labels, confounders, partitions), total=len(image_ids)):
                 if data_split[partition] == self.split:
+                  # Create training Dataset
                   shutil.copy(os.path.join('img_align_celeba', 'img_align_celeba', image_id), os.path.join(
-                      self.img_data_dir, image_id))
-                  self.data_path[int(image_id.split('.')[-2])] = os.path.join(self.img_data_dir, image_id)
-                  self.labels[int(image_id.split('.')[-2])] = int(label)
-                  self.confounders[int(image_id.split('.')[-2])] = confounder
+                      self.img_data_dir, str(label),image_id))
+                  # self.data_path.append(os.path.join(self.img_data_dir, image_id))
+                  # self.labels = np.append(self.labels,int(label))
+                  #self.data_path[int(image_id.split('.')[-2])] = os.path.join(self.img_data_dir, image_id)
+                  self.data_path.append(os.path.join(self.img_data_dir, str(label),image_id))
+                  #self.labels[int(image_id.split('.')[-2])] = int(label)
+                  self.labels.append(int(label))
+                  self.confounders[image_id] = confounder
+                  # Create validation Dataset
                 
             print(f"\n\nfinished creating and saving {self.split} dataset of CelebA\n\n")
             return
-
-
 
 
         attrs_df = pd.read_csv(os.path.join(
@@ -126,16 +136,36 @@ class CelebADataset(CelebA):
 
         for image_id, label, confounder, partition in tqdm(zip(image_ids, labels, confounders, partitions), total=len(image_ids)):
           if data_split[partition] == self.split:
-            self.data_path[int(image_id.split('.')[-2])] = os.path.join(self.img_data_dir, image_id)
-            self.labels[int(image_id.split('.')[-2])] = int(label)
-            self.confounders[int(image_id.split('.')[-2])] = confounder
+            #self.data_path[int(image_id.split('.')[-2])] = os.path.join(self.img_data_dir, image_id)
+            #self.labels[int(image_id.split('.')[-2])] = int(label)
+            #self.data_path.append(os.path.join(self.img_data_dir, image_id))
+                  #self.labels[int(image_id.split('.')[-2])] = int(label)
+            #self.labels.append(int(label))
+            self.confounders[image_id] = confounder
+        
+        self.data_path = []
+        
+        data_classes = sorted(os.listdir(self.img_data_dir))
+        print("-"*10, f"indexing {self.split} data", "-"*10)
+        for data_class in tqdm(data_classes):
+            try:
+                label = int(data_class)
+            except:
+                continue
+            class_image_file_paths = glob(
+                os.path.join(self.img_data_dir, data_class, '*'))
+            self.data_path += class_image_file_paths
+            
+            self.labels += [label] * len(class_image_file_paths)
+
 
                  
-        print(f"\n\nfinished creating and saving {self.split} dataset of CelebA\n\n")  
+        print(f"\n\nfinished creating and saving {self.split} dataset of CelebA\n\n")    
 
+    
     def __len__(self):
         return len(self.data_path)
-    
+
     def __getitem__(self, index: int):
 
       # Using id, you take image and label related to that value
@@ -147,6 +177,8 @@ class CelebADataset(CelebA):
       if self.transform is not None:
         img = self.transform(img)
           
-      confounder = self.confounders[index]
+      confounder = self.confounders[img_file_path.split('/')[-1]]
           
       return img, img_file_path, label, confounder
+
+        
