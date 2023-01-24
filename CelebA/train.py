@@ -99,7 +99,41 @@ class CelebATrain:
                 num_workers=1
             )
 
-       
+    def masking_images(self, image):
+        hm = self.heat_map_generator(image)
+        # Creazione Maschera
+        mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+        mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+        mask_threshold_value = mask_mean_value + 2 * mask_std_value
+        mask = np.where(hm > mask_threshold_value, 0, 1)
+        masked_images = image*mask
+        return masked_images.numpy()
+
+
+    def mask_data(self):
+        self.heat_map_generator = XGradCAM(
+            model=self.model,
+            target_layers=[self.model.get_grad_cam_target_layer()],
+            use_cuda=True,
+        )
+
+        self.masked_dataset = CelebADataset(
+            root='data/CelebA',
+            split="test",                     
+            transform = self.transform_test, 
+            download = True,
+            Mask=True,
+            Mask_funct=self.masking_images,        
+        )
+
+        self.masked_loader= torch.utils.data.DataLoader(
+            self.masked_dataset,
+            batch_size=128,
+            shuffle=True,
+            num_workers=1
+        )
+
+
     #Function used to run an epoch (train, validation or test)
     def run_an_epoch(self, data_loader, epoch, mode="train", device='cpu'):
         if mode == "train":
