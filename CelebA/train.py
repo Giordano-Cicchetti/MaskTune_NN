@@ -1,5 +1,6 @@
 import torch.nn.functional as F
 import torch.optim as optim
+import torch
 from tqdm import tqdm
 from model import *
 from others import *
@@ -11,6 +12,9 @@ from copy import deepcopy
 from torchvision.transforms import transforms
 from sklearn.model_selection import train_test_split
 from pytorch_grad_cam import XGradCAM
+import numpy as np
+from torchvision.utils import save_image
+from glob import glob
 
 class CelebATrain:
     def __init__(self, device):
@@ -99,7 +103,72 @@ class CelebATrain:
                 num_workers=1
             )
 
-       
+    def mask_data(self,train_loader,checkpoint_path=None):
+        #Load the trained model for masking the image
+        if(checkpoint_path!=None):
+          checkpoint = torch.load(checkpoint_path)
+          self.model.load_state_dict(checkpoint['model_state_dict'])
+          self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+          
+        #Use XGradCAM as mask generator 
+        heat_map_generator = XGradCAM(
+            model=self.model,
+            target_layers=[self.model.get_grad_cam_target_layer()],
+            use_cuda=True,
+        )
+
+        #Generate masked dataset starting from train dataset
+        self.masked_dataset = deepcopy(self.train_dataset)
+        masked_data_dir = self.train_dataset.img_data_dir.replace("train", "masked")
+        if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
+            os.makedirs(masked_data_dir, exist_ok=True)
+            os.mkdir(os.path.join(masked_data_dir,"0"))
+            os.mkdir(os.path.join(masked_data_dir,"1"))
+
+            #maskedimg = torch.empty(1,3,224,224)
+            for data in tqdm(train_loader):
+                # Creazione Heat-Map per batch
+                i1,i2,i3 = data[0],data[1],data[2]
+                hm = heat_map_generator(i1)
+        
+                # Creazione Maschera
+                mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+                mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+                mask_threshold_value = mask_mean_value + 2 * mask_std_value
+                masks = np.where(hm > mask_threshold_value, 0, 1)
+
+                # Applicazione Maschera su immagini del batch
+                
+                for image,mask,original_path in zip(data[0],masks,data[1]):
+          
+                    masked_images = image*mask
+                    masked_images.numpy()
+                    path=original_path.replace("train", "masked")
+                    save_image(masked_images, path)
+        
+        self.masked_dataset.data_path = []
+        
+        data_classes = sorted(os.listdir(masked_data_dir))
+        print("-"*10, f"indexing Masked data", "-"*10)
+        for data_class in tqdm(data_classes):
+            try:
+                label = int(data_class)
+            except:
+                continue
+            class_image_file_paths = glob(
+                os.path.join(masked_data_dir, data_class, '*'))
+            self.masked_dataset.data_path += class_image_file_paths
+            
+            self.masked_dataset.labels += [label] * len(class_image_file_paths)
+        
+        self.masked_loader= torch.utils.data.DataLoader(
+            self.masked_dataset,
+            batch_size=128,
+            shuffle=True,
+            num_workers=1
+        )
+
+
     #Function used to run an epoch (train, validation or test)
     def run_an_epoch(self, data_loader, epoch, mode="train", device='cpu'):
         if mode == "train":
@@ -159,7 +228,7 @@ class CelebATrain:
             checkpoint = torch.load("last_erm_model.pt")
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             resume_epoch = checkpoint['epoch'] + 1
 
             checkpoint = torch.load("best_erm_model.pt")
@@ -180,7 +249,7 @@ class CelebATrain:
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
                 }, "last_erm_model.pt")
             if(val_accuracy>self.best_accuracy):
@@ -189,7 +258,7 @@ class CelebATrain:
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
                 }, "best_erm_model.pt")
 
@@ -201,7 +270,7 @@ class CelebATrain:
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         epoch = checkpoint['epoch']
         #RUN AN EPOCH IN TEST MODE AND USING A TEST LOADER SPECIFIED AS INPUT
         accuracy = self.test_groups_epoch(
