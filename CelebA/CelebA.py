@@ -20,21 +20,20 @@ data_split = {
 class CelebADataset(CelebA):
     def __init__(
             self,
+            Mask=False,
+            Mask_funct=None,
             **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.split = kwargs["split"]
 
+        self.mask=Mask
+        self.mask_funct=Mask_funct
 
         self.target_attribute = "Blond_Hair"
         self.transform = kwargs["transform"]
         self.confounder =  "Male"
-        # self.split = split
-        # self.target_transform = target_transform
-        # self.return_confounder = return_confounder
-        # self.return_masked = False
         self.data_path = []
-        # self.masked_data_path = []
         self.labels = []
         self.confounders = {}
         self.split = kwargs["split"]
@@ -168,17 +167,21 @@ class CelebADataset(CelebA):
 
     def __getitem__(self, index: int):
 
-      # Using id, you take image and label related to that value
-      img_file_path, label = self.data_path[index], self.labels[index]
+        # Using id, you take image and label related to that value
+        img_file_path, label = self.data_path[index], self.labels[index]
 
-      # Obtain image from the path
-      img = Image.open(img_file_path)
-          
-      if self.transform is not None:
-        img = self.transform(img)
-          
-      confounder = self.confounders[img_file_path.split('/')[-1]]
-          
-      return img, img_file_path, label, confounder
+        # Obtain image from the path
+        img = Image.open(img_file_path)
+            
+        if self.transform is not None:
+            img = self.transform(img)
+        
+        if self.mask == True:
+            img = self.mask_funct(img)
+
+            
+        confounder = self.confounders[img_file_path.split('/')[-1]]
+            
+        return img, img_file_path, label, confounder
 
         
