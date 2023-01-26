@@ -15,6 +15,8 @@ from pytorch_grad_cam import XGradCAM
 import numpy as np
 from torchvision.utils import save_image
 from glob import glob
+import cv2
+from PIL import Image
 
 class CelebATrain:
     def __init__(self, device):
@@ -116,9 +118,17 @@ class CelebATrain:
             target_layers=[self.model.get_grad_cam_target_layer()],
             use_cuda=True,
         )
+        
+        transform_data_to_mask = transforms.Compose([
+            transforms.CenterCrop(178),
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
 
         #Generate masked dataset starting from train dataset
         self.masked_dataset = deepcopy(self.train_dataset)
+        self.masked_dataset.transform=transform_data_to_mask
         masked_data_dir = self.train_dataset.img_data_dir.replace("train", "masked")
         if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
             os.makedirs(masked_data_dir, exist_ok=True)
@@ -129,6 +139,7 @@ class CelebATrain:
             for data in tqdm(train_loader):
                 # Creazione Heat-Map per batch
                 i1,i2,i3 = data[0],data[1],data[2]
+                
                 hm = heat_map_generator(i1)
         
                 # Creazione Maschera
@@ -136,17 +147,23 @@ class CelebATrain:
                 mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
                 mask_threshold_value = mask_mean_value + 2 * mask_std_value
                 masks = np.where(hm > mask_threshold_value, 0, 1)
+                
 
                 # Applicazione Maschera su immagini del batch
                 
                 for image,mask,original_path in zip(data[0],masks,data[1]):
-          
-                    masked_images = image*mask
-                    masked_images.numpy()
+                    
+                    original_image = Image.open(original_path).convert('RGB')
+                    image_mask = np.expand_dims(cv2.resize(mask, dsize=original_image.size, interpolation=cv2.INTER_NEAREST), axis=-1)
+                    masked_image = np.array(original_image) * image_mask
+                    #masked_images = image*mask
+                    #masked_images.numpy()
                     path=original_path.replace("train", "masked")
-                    save_image(masked_images, path)
+                    im = Image.fromarray(masked_image.astype(np.uint8))
+                    im.save(path)
         
         self.masked_dataset.data_path = []
+        self.masked_dataset.labels    =[]
         
         data_classes = sorted(os.listdir(masked_data_dir))
         print("-"*10, f"indexing Masked data", "-"*10)
