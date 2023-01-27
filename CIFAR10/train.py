@@ -269,7 +269,7 @@ class Cifar10Train:
             checkpoint = torch.load(last_resume_checkpoint_path)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             resume_epoch = checkpoint['epoch'] + 1
 
             checkpoint = torch.load(best_resume_checkpoint_path)
@@ -296,18 +296,18 @@ class Cifar10Train:
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
-                }, last_resume_checkpoint_path)
+                }, 'last_erm_model.pt')
             if(val_accuracy>self.best_accuracy):
                 self.best_accuracy=val_accuracy
                 torch.save({
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
-                }, best_resume_checkpoint_path)
+                }, 'best_erm_model.pt')
 
 
     #function used to test the accuracy of the model against the CelebA dataset
@@ -317,7 +317,7 @@ class Cifar10Train:
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         epoch = checkpoint['epoch']
         #RUN AN EPOCH IN TEST MODE AND USING A TEST LOADER SPECIFIED AS INPUT
         accuracy = self.run_an_epoch(
