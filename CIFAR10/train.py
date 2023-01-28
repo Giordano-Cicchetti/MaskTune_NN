@@ -192,7 +192,7 @@ class Cifar10Train:
             for data in progress_bar:
                 progress_bar.set_description(f'{mode} epoch {epoch}')
                 #Take batch of inputs in variable X and corrispondent labels in variable y
-                X, y = data[0], data[2]
+                X, y = data[0], data[1]
                 X, y = X.to(device), y.to(device)
                 #Inference time
                 outputs = self.model(X)
