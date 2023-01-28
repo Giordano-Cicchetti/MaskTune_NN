@@ -67,19 +67,14 @@ class Cifar10Train:
         
         
     def initialize_datasets_loaders(self):
-        ##### FORSE DOWNLOAD=FALSE, CHIEDERE A JAC #####
         self.train_dataset = CIFAR10(
-                # raw_data_path=self.args.dataset_dir,
                 root='data/',
                 train=True,
                 transform=self.transform_train,
                 download=True
-
             )
-        #trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                        #download=True, transform=transform)
         self.test_dataset = CIFAR10(
-                root='./data',
+                root='data/',
                 train=False,                     
                 transform = self.transform_test, 
                 download = True,            
@@ -92,25 +87,21 @@ class Cifar10Train:
                 download = True,            
             )
         
+        #Split Train dataset and build validation dataset
         num_train = len(self.train_dataset)
         indices = list(range(num_train))
         split = int(np.floor(0.2 * num_train))
-
-            # if shuffle:
         np.random.seed(50)
         np.random.shuffle(indices)
-
         train_idx, val_idx = indices[split:], indices[:split]
-        #np.save(train_val_indices_file, np.array([train_idx, val_idx]))
-        train_sampler = SubsetRandomSampler(train_idx)
-        val_sampler = SubsetRandomSampler(val_idx)
-        #X_train, X_test, y_train, y_test = train_test_split(self.train_dataset.data, self., test_size=0.33, random_state=42)
+        self.train_sampler = SubsetRandomSampler(train_idx)
+        self.val_sampler = SubsetRandomSampler(val_idx)
 
         # Dataloaders
         self.train_loader = torch.utils.data.DataLoader(
                 self.train_dataset,
                 batch_size=128,
-                sampler=train_sampler,
+                sampler=self.train_sampler,
                 shuffle=False,
                 num_workers=1
             )
@@ -118,7 +109,7 @@ class Cifar10Train:
         self.val_loader = torch.utils.data.DataLoader(
                 self.val_dataset,
                 batch_size=128,
-                sampler=val_sampler,
+                sampler=self.val_sampler,
                 shuffle=False,
                 num_workers=1
             )
@@ -129,7 +120,7 @@ class Cifar10Train:
                 num_workers=1
             )
 
-    def mask_data(self,train_loader,checkpoint_path=None):
+    def mask_data(self,checkpoint_path=None):
         #Load the trained model for masking the image
         if(checkpoint_path!=None):
           checkpoint = torch.load(checkpoint_path)
@@ -144,68 +135,42 @@ class Cifar10Train:
         )
         
         transform_data_to_mask = transforms.Compose([
-            transforms.CenterCrop(178),
-            transforms.Resize(224),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.ToTensor()
         ])
 
         #Generate masked dataset starting from train dataset
         self.masked_dataset = deepcopy(self.train_dataset)
         self.masked_dataset.transform=transform_data_to_mask
-        masked_data_dir = self.train_dataset.img_data_dir.replace("train", "masked")
-        if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
-            os.makedirs(masked_data_dir, exist_ok=True)
-            os.mkdir(os.path.join(masked_data_dir,"0"))
-            os.mkdir(os.path.join(masked_data_dir,"1"))
 
-            #maskedimg = torch.empty(1,3,224,224)
-            for data in tqdm(train_loader):
-                # Creazione Heat-Map per batch
-                i1,i2,i3 = data[0],data[1],data[2]
-                
-                hm = heat_map_generator(i1)
+        masked_data=[]
+        masked_labels=[]
+        #maskedimg = torch.empty(1,3,224,224)
+        for image,label in tqdm(zip(self.train_dataset.data,self.train_dataset.targets)):
+            # Creazione Heat-Map per image
+            hm = heat_map_generator(image)
         
-                # Creazione Maschera
-                mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
-                mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
-                mask_threshold_value = mask_mean_value + 2 * mask_std_value
-                masks = np.where(hm > mask_threshold_value, 0, 1)
+            # Creazione Maschera
+            mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+            mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
+            mask_threshold_value = mask_mean_value + 2 * mask_std_value
+            mask = np.where(hm > mask_threshold_value, 0, 1)
                 
 
-                # Applicazione Maschera su immagini del batch
-                
-                for image,mask,original_path in zip(data[0],masks,data[1]):
-                    
-                    original_image = Image.open(original_path).convert('RGB')
-                    image_mask = np.expand_dims(cv2.resize(mask, dsize=original_image.size, interpolation=cv2.INTER_NEAREST), axis=-1)
-                    masked_image = np.array(original_image) * image_mask
-                    #masked_images = image*mask
-                    #masked_images.numpy()
-                    path=original_path.replace("train", "masked")
-                    im = Image.fromarray(masked_image.astype(np.uint8))
-                    im.save(path)
+            # Applicazione Maschera su immagine
+            image_mask = np.expand_dims(cv2.resize(mask, dsize=(32,32), interpolation=cv2.INTER_NEAREST), axis=-1)
+            masked_image = np.array(image) * image_mask
+
+            masked_data.append(masked_image)
+            masked_labels.append(label)
         
-        self.masked_dataset.data_path = []
-        self.masked_dataset.labels    =[]
-        
-        data_classes = sorted(os.listdir(masked_data_dir))
-        print("-"*10, f"indexing Masked data", "-"*10)
-        for data_class in tqdm(data_classes):
-            try:
-                label = int(data_class)
-            except:
-                continue
-            class_image_file_paths = glob(
-                os.path.join(masked_data_dir, data_class, '*'))
-            self.masked_dataset.data_path += class_image_file_paths
-            
-            self.masked_dataset.labels += [label] * len(class_image_file_paths)
-        
+        self.masked_dataset.data=masked_data
+        self.masked_dataset.targets=masked_labels
+
         self.masked_loader= torch.utils.data.DataLoader(
             self.masked_dataset,
             batch_size=128,
-            shuffle=True,
+            sampler=self.train_sampler,
+            shuffle=False,
             num_workers=1
         )
 
