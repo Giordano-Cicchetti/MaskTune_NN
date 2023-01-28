@@ -120,6 +120,7 @@ class Cifar10Train:
                 num_workers=1
             )
 
+
     def mask_data(self,checkpoint_path=None):
         #Load the trained model for masking the image
         if(checkpoint_path!=None):
@@ -145,9 +146,14 @@ class Cifar10Train:
         masked_data=[]
         masked_labels=[]
         #maskedimg = torch.empty(1,3,224,224)
-        for image,label in tqdm(zip(self.train_dataset.data,self.train_dataset.targets)):
+        for image,label in tqdm(zip(self.train_dataset.data,self.train_dataset.targets),total=len(self.train_dataset.data)):
             # Creazione Heat-Map per image
+            image= transform_data_to_mask(image)
+            image= torch.unsqueeze(image,0)
+            image= image.to(self.device)
+            
             hm = heat_map_generator(image)
+           
         
             # Creazione Maschera
             mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
@@ -157,13 +163,16 @@ class Cifar10Train:
                 
 
             # Applicazione Maschera su immagine
-            image_mask = np.expand_dims(cv2.resize(mask, dsize=(32,32), interpolation=cv2.INTER_NEAREST), axis=-1)
-            masked_image = np.array(image) * image_mask
-
+            masked_image = np.array(image.cpu()) * mask
+            masked_image = masked_image[0]
+            masked_image = np.transpose(masked_image,(1,2,0))
+            masked_image = 255 * masked_image # Now scale by 255
+            masked_image = masked_image.astype(np.uint8)
             masked_data.append(masked_image)
             masked_labels.append(label)
+            
         
-        self.masked_dataset.data=masked_data
+        self.masked_dataset.data=np.asarray(masked_data)
         self.masked_dataset.targets=masked_labels
 
         self.masked_loader= torch.utils.data.DataLoader(
@@ -173,6 +182,7 @@ class Cifar10Train:
             shuffle=False,
             num_workers=1
         )
+
 
 
     #Function used to run an epoch (train, validation or test)
