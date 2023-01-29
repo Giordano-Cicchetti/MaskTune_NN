@@ -22,7 +22,7 @@ import torch.nn as nn
 from torch.utils.data.sampler import SubsetRandomSampler
 
 
-class Cifar10Train:
+class SVHNTrain:
     def __init__(self, device):
         #DEVICE
         self.device       = device
@@ -53,9 +53,8 @@ class Cifar10Train:
         self.transform_test = transforms.Compose([transforms.ToTensor()])
         self.transform_train = transforms.Compose(
             [
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomAffine(degrees=15, translate=(0.1, 0.1)),
-                transforms.ToTensor(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.ToTensor()
             ]
         )
         transform_data_to_mask = transforms.Compose(
@@ -69,20 +68,20 @@ class Cifar10Train:
     def initialize_datasets_loaders(self):
         self.train_dataset = SVHN(
                 root='data/',
-                train=True,
+                split='train',
                 transform=self.transform_train,
                 download=True
             )
         self.test_dataset = SVHN(
                 root='data/',
-                train=False,                     
+                split='test',                     
                 transform = self.transform_test, 
                 download = True,            
             )
 
         self.val_dataset = SVHN(
                 root='data/',
-                train=True,                     
+                split='train',                     
                 transform = self.transform_test, 
                 download = True,            
             )
@@ -151,7 +150,8 @@ class Cifar10Train:
             image= transform_data_to_mask(image)
             image= torch.unsqueeze(image,0)
             image= image.to(self.device)
-            
+            image = image.transpose(1,2).transpose(2,3)
+
             hm = heat_map_generator(image)
            
         
@@ -165,15 +165,15 @@ class Cifar10Train:
             # Applicazione Maschera su immagine
             masked_image = np.array(image.cpu()) * mask
             masked_image = masked_image[0]
-            masked_image = np.transpose(masked_image,(1,2,0))
             masked_image = 255 * masked_image # Now scale by 255
             masked_image = masked_image.astype(np.uint8)
             masked_data.append(masked_image)
             masked_labels.append(label)
+
             
         
         self.masked_dataset.data=np.asarray(masked_data)
-        self.masked_dataset.targets=masked_labels
+        self.masked_dataset.labels=np.asarray(masked_labels)
 
         self.masked_loader= torch.utils.data.DataLoader(
             self.masked_dataset,
