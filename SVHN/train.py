@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 from model import resnet32
 from others import *
-#from Cifar10 import Cifar10
+
 from torchvision.datasets import SVHN
 import math 
 import shutil
@@ -145,7 +145,7 @@ class SVHNTrain:
         masked_data=[]
         masked_labels=[]
         #maskedimg = torch.empty(1,3,224,224)
-        for image,label in tqdm(zip(self.train_dataset.data,self.train_dataset.targets),total=len(self.train_dataset.data)):
+        for image,label in tqdm(zip(self.train_dataset.data,self.train_dataset.labels),total=len(self.train_dataset.data)):
             # Creazione Heat-Map per image
             image= transform_data_to_mask(image)
             image= torch.unsqueeze(image,0)
@@ -301,9 +301,6 @@ class SVHNTrain:
         self.logger.info("-" * 10 + f"Test accuracy ={accuracy}" +"-" * 10, print_msg=True)
 
         
-
-#TO DO MaskData
-#TO DO Test selective classification
 
 
 
