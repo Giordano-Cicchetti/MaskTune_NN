@@ -126,7 +126,7 @@ class BackgroundChallenge_Train:
         self.test_loaders = [self.test_loader_orig, self.test_loader_ms, self.test_loader_mr, self.test_loader_fg]
         self.test_loaders_names = ["loader original", "loader mixed same", "loader mixed rand", "loader only foreground"]
 
-    def mask_data(self,train_loader,checkpoint_path=None):
+    def mask_data(self, checkpoint_path=None):
         #Load the trained model for masking the image
         if(checkpoint_path!=None):
           checkpoint = torch.load(checkpoint_path)
@@ -309,7 +309,7 @@ class BackgroundChallenge_Train:
 
 
     #function used to test the accuracy of the model against the CelebA dataset
-    def test(self, test_loader, checkpoint_path=None):
+    def test(self, checkpoint_path=None):
         self.logger.info("-" * 10 + "testing the model" +"-" * 10, print_msg=True)
         #LOAD THE MODEL SPECIFIED IN THE CHECKPOINT PATH
         checkpoint = torch.load(checkpoint_path)
