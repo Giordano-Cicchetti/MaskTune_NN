@@ -272,7 +272,7 @@ class BackgroundChallenge_Train:
             checkpoint = torch.load(last_resume_checkpoint_path)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             resume_epoch = checkpoint['epoch'] + 1
 
             checkpoint = torch.load(best_resume_checkpoint_path)
@@ -288,12 +288,13 @@ class BackgroundChallenge_Train:
             val_accuracy = self.run_an_epoch(
                 data_loader=self.val_loader, epoch=current_epoch, mode="validation",device=self.device
             )
+            self.lr_scheduler.step()
 
             torch.save({
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
                 }, "last_erm_model.pt")
             if(val_accuracy>self.best_accuracy):
@@ -302,7 +303,7 @@ class BackgroundChallenge_Train:
                 'epoch': self.current_epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
-                #'scheduler_state_dict': self.lr_scheduler.state_dict(),
+                'scheduler_state_dict': self.lr_scheduler.state_dict(),
                 'accuracy' : val_accuracy,
                 }, "best_erm_model.pt")
 
@@ -314,7 +315,7 @@ class BackgroundChallenge_Train:
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         epoch = checkpoint['epoch']
 
         #RUN AN EPOCH IN TEST MODE AND USING TEST LOADERS
