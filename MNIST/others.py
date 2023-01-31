@@ -1,11 +1,12 @@
 import os
 import torch
+#This code is Taken from the github repository of the original paper:
+#https://github.com/aliasgharkhani/Masktune/blob/master/src/utils/logging.py
 
 class AverageMeter(object):
     """Computes and stores the average and current value
     Imported from https://github.com/pytorch/examples/blob/master/imagenet/main.py#L247-L262
     """
-
     def __init__(self):
         self.reset()
 
@@ -35,6 +36,8 @@ class Logger:
         with open(os.path.join(self.path, "log.txt"), "a") as f:
             f.write(msg + "\n")
 
+#Function used to calculate the accuracy of the model
 def calculate_accuracy(labels: torch.tensor, outputs: torch.tensor):
+    #For each label and corrispondent predicted label compute whether they are the same or not
     equals = labels.eq(outputs)
     return torch.sum(equals).item() / len(labels)

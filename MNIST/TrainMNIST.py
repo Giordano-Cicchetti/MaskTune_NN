@@ -20,7 +20,7 @@ class TrainMNIST:
         #LOSS FUNCTION
         self.loss_function= nn.CrossEntropyLoss()
         #MODEL
-        self.model        = SmallCNN(2)
+        self.model        = CNN_MNIST(num_classes=2)
         self.model        = self.model.to(self.device)
         #LOGGER
         self.logger       = Logger("", None)
@@ -148,6 +148,12 @@ class TrainMNIST:
     #####
     
     def mask_data(self, train_loader,erm_checkpoint_path: str=None):
+        #Load the trained model for masking the image
+        if(erm_checkpoint_path!=None):
+          checkpoint = torch.load(erm_checkpoint_path)
+          self.model.load_state_dict(checkpoint['model_state_dict'])
+          self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+          
         
         heat_map_generator = XGradCAM(
             model=self.model,
@@ -181,14 +187,7 @@ class TrainMNIST:
                     masked_images.numpy()
                     target=int(target)
                     save_image(masked_images, os.path.join(masked_data_dir, f"{counter_imgs}{target}.png"))
-                    #maskedimg = torch.cat((maskedimg, masked_images[None,:]))
 
-                    ### PROBLEMI PROBLEMI per Sciarl###
-                    ### Se non transponi le assi del tensore errore ###
-
-                    #Image.fromarray(masked_images.transpose(0,1).transpose(1,2).numpy().astype(np.uint8)).save(
-                    #  os.path.join(masked_data_dir, f"{counter_imgs}.png")
-                    #)
                     counter_imgs += 1
           
         
@@ -212,6 +211,7 @@ class TrainMNIST:
         self.masked_dataset.data_new=data_new
         self.masked_dataset.data_new_paths=data_new_paths
 
+        #Creation of masked data loader
         self.masked_loader= torch.utils.data.DataLoader(
             self.masked_dataset,
             batch_size=128,
@@ -271,17 +271,18 @@ class TrainMNIST:
         return accuracies.avg
 
     #Function used to train the entire convolutional network for a certan number of epochs
-    def train_erm(self,epochs=100, resume=False, best_resume_checkpoint_path: str=None, last_resume_checkpoint_path: str=None) -> None:
+    def train_erm(self, epochs=100, best_resume_checkpoint_path: str=None, last_resume_checkpoint_path: str=None) -> None:
         resume_epoch = 0
         self.best_accuracy=-math.inf
+        #If a checkpoint is specified then restart the train
         if(best_resume_checkpoint_path!=None and last_resume_checkpoint_path!=None):
-            checkpoint = torch.load("last_erm_model.pt")
+            checkpoint = torch.load(last_resume_checkpoint_path)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             resume_epoch = checkpoint['epoch'] + 1
 
-            checkpoint = torch.load("best_erm_model.pt")
+            checkpoint = torch.load(best_resume_checkpoint_path)
             self.best_accuracy=checkpoint['accuracy']
         
 
@@ -317,7 +318,7 @@ class TrainMNIST:
                 'accuracy' : val_accuracy,
                 }, "best_erm_model.pt")
 
-
+    #Function used to test the model by using a test loader specified as parameter
     def test(self, test_loader,checkpoint_path=None):
         self.logger.info("-" * 10 + "testing the model" +"-" * 10, print_msg=True)
         #LOAD THE MODEL SPECIFIED IN THE CHECKPOINT PATH
