@@ -54,7 +54,7 @@ class CNN_MNIST(nn.Module):
         )
 
     def get_grad_cam_target_layer(self):
-        return self.conv4[-3]
+        return self.conv4[-2]
 
     def forward(self, x):
         #Pass inputs to the four conv layers

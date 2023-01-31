@@ -8,7 +8,6 @@ import math
 from numpy.random import default_rng
 from copy import deepcopy
 from torchvision.transforms import ToTensor
-from sklearn.model_selection import train_test_split
 from pytorch_grad_cam import XGradCAM
 from torchvision.utils import save_image
 
@@ -170,8 +169,8 @@ class TrainMNIST:
             #maskedimg = torch.empty(1,3,28,28)
             for data in tqdm(train_loader):
                 # Creazione Heat-Map per batch
-                i1,i2,i3 = data[0],data[1],data[2]
-                hm = heat_map_generator(i1)
+                images,data_paths,targets = data[0],data[1],data[2]
+                hm = heat_map_generator(images)
         
                 # Creazione Maschera
                 mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
@@ -180,17 +179,13 @@ class TrainMNIST:
                 masks = np.where(hm > mask_threshold_value, 0, 1)
 
                 # Applicazione Maschera su immagini del batch
-                
-                for image,mask,target in zip(data[0],masks,data[2]):
-          
+                for image,mask,target in zip(images,masks,targets):
                     masked_images = image*mask
                     masked_images.numpy()
                     target=int(target)
                     save_image(masked_images, os.path.join(masked_data_dir, f"{counter_imgs}{target}.png"))
-
                     counter_imgs += 1
           
-        
         #create variables data_new e data_new_paths
         data_new=[]
         data_new_paths=[]      
