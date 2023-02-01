@@ -75,32 +75,32 @@ class BackgroundChallenge_Train:
         self.val_dataset = IN9L_dataset(
             root="data/original",
             split='val',
-            transform=self.transform_train
+            transform=self.transform_test
         )
 
         # Creation Test Datasets
         self.test_dataset_orig = IN9L_dataset(
             root="data/bg_challenge",
             split='original',
-            transform=self.test
+            transform=self.transform_test
         )
         
         self.test_dataset_ms = IN9L_dataset(
             root="data/bg_challenge",
             split='mixed_same',
-            transform=self.transform_train
+            transform=self.transform_test
         )
         
         self.test_dataset_mr = IN9L_dataset(
             root="data/bg_challenge",
             split='mixed_rand',
-            transform=self.transform_train
+            transform=self.transform_test
         )
         
         self.test_dataset_fg = IN9L_dataset(
             root="data/bg_challenge",
             split='only_fg',
-            transform=self.transform_train
+            transform=self.transform_test
         )
         
 
@@ -141,7 +141,7 @@ class BackgroundChallenge_Train:
         )
         
         transform_data_to_mask = transforms.Compose([
-            transforms.Resize(224),
+            transforms.Resize([224,224]),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
@@ -149,7 +149,7 @@ class BackgroundChallenge_Train:
         #Generate masked dataset starting from train dataset
         self.masked_dataset = deepcopy(self.train_dataset)
         self.masked_dataset.transform=transform_data_to_mask
-        masked_data_dir = self.train_dataset.img_data_dir.replace("train", "masked")
+        masked_data_dir = self.train_dataset.raw_img_data_dir.replace("train", "masked")
         if not (os.path.isdir(masked_data_dir) and len(os.listdir(masked_data_dir)) > 0):
             os.makedirs(masked_data_dir, exist_ok=True)
             os.mkdir(os.path.join(masked_data_dir,"00_dog"))
@@ -163,7 +163,7 @@ class BackgroundChallenge_Train:
             os.mkdir(os.path.join(masked_data_dir,"08_fish"))
 
             #maskedimg = torch.empty(1,3,224,224)
-            for data in tqdm(train_loader):
+            for data in tqdm(self.train_loader):
                 # Creazione Heat-Map per batch
                 i1,i2,i3 = data[0],data[1],data[2]
                 
@@ -183,8 +183,6 @@ class BackgroundChallenge_Train:
                     original_image = Image.open(original_path).convert('RGB')
                     image_mask = np.expand_dims(cv2.resize(mask, dsize=original_image.size, interpolation=cv2.INTER_NEAREST), axis=-1)
                     masked_image = np.array(original_image) * image_mask
-                    #masked_images = image*mask
-                    #masked_images.numpy()
                     path=original_path.replace("train", "masked")
                     im = Image.fromarray(masked_image.astype(np.uint8))
                     im.save(path)
@@ -322,10 +320,9 @@ class BackgroundChallenge_Train:
         for id, test_loader in zip(self.test_loaders_names, self.test_loaders):
             self.logger.info("-" * 10 + f"Testing {id} accuracy" +"-" * 10, print_msg=True)
             accuracy = self.run_an_epoch(
-                data_loader=test_loader, epoch=epoch,device=self.device
+                data_loader=test_loader, epoch=epoch,device=self.device,mode='test'
             )
-            self.logger.info("-" * 10 + f"Test {id} accuracy ={accuracy}" +"-" * 10, print_msg=True)
-
+            
     
    
     

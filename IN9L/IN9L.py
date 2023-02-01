@@ -18,14 +18,14 @@ class IN9L_dataset(Dataset):
         self.targets = []
         self.transform = transform
         if split == 'train' or split == 'val':
-            raw_img_data_dir = os.path.join(root, split)
+            self.raw_img_data_dir = os.path.join(root, split)
         else:
-            raw_img_data_dir = os.path.join(
+            self.raw_img_data_dir = os.path.join(
                 root, split, 'val')
 
         self.data_path = []
         self.targets = []
-        data_class_names = sorted(os.listdir(raw_img_data_dir))
+        data_class_names = sorted(os.listdir(self.raw_img_data_dir))
         print("-"*10, f"indexing {self.split} data", "-"*10)
         for data_class_name in tqdm(data_class_names):
             try:
@@ -33,7 +33,7 @@ class IN9L_dataset(Dataset):
             except:
                 continue
             class_image_file_paths = glob(
-                os.path.join(raw_img_data_dir, data_class_name, '*'))
+                os.path.join(self.raw_img_data_dir, data_class_name, '*'))
             self.data_path += class_image_file_paths
             self.targets += [target] * len(class_image_file_paths)
 
