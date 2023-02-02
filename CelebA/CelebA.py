@@ -17,14 +17,16 @@ data_split = {
 class CelebADataset(Dataset):
     def __init__(
             self,
-            **kwargs,
+            root,
+            split,
+            transform=None
     ) -> None:
-        super().__init__(**kwargs)
-        self.split = kwargs["split"]
+        super().__init__()
+        self.split = split
         self.target_attribute = "Blond_Hair"
-        self.transform = kwargs["transform"]
+        self.transform = transform
         self.confounder =  "Male"
-        self.root = kwargs["root"]
+        self.root = root
         self.data_path = []
         self.labels = []
         #In confounder we store de information about the genre of each image 
@@ -32,15 +34,15 @@ class CelebADataset(Dataset):
 
         if (self.split=="train"):
             self.img_data_dir = os.path.join(
-                kwargs["root"],
+                self.root,
                 self.split)
         elif (self.split=="test"):
             self.img_data_dir = os.path.join(
-                kwargs["root"],
+                self.root,
                 self.split)
         else:
             self.img_data_dir = os.path.join(
-                kwargs["root"],
+                self.root,
                 self.split)
         
         #If it is the first time that we download the dataset:
@@ -80,7 +82,7 @@ class CelebADataset(Dataset):
             for image_id, label, confounder, partition in tqdm(zip(image_ids, labels, confounders_val, partitions), total=len(image_ids)):
                 if data_split[partition] == self.split:
                   # Create training Dataset
-                  shutil.copy(os.path.join('img_align_celeba', 'img_align_celeba', image_id), os.path.join(
+                  shutil.copy(os.path.join(self.root,'img_align_celeba', 'img_align_celeba', image_id), os.path.join(
                       self.img_data_dir, str(label),image_id))
                   self.data_path.append(os.path.join(self.img_data_dir, str(label),image_id))
                   self.labels.append(int(label))
