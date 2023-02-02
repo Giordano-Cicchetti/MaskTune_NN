@@ -6,7 +6,6 @@ from model import *
 from others import *
 from CelebA import CelebADataset
 import math 
-import shutil
 from numpy.random import default_rng
 from copy import deepcopy
 from torchvision.transforms import transforms
@@ -21,39 +20,43 @@ from PIL import Image
 class CelebATrain:
     def __init__(self, device):
         #DEVICE
-        self.device       = device
+        self.device = device
         #LOSS FUNCTION
         self.loss_function= nn.CrossEntropyLoss()
         #MODEL
         self.model = ResNet50(pretrained=True, num_classes=2)
         self.model.to(device)
         #OPTIMIZER
-        self.optimizer    = optim.SGD(
+        self.optimizer = optim.SGD(
                 self.model.parameters(),
                 lr=1e-4,
                 momentum=0.9,
                 weight_decay=1e-4
             )
         #LOGGER
-        self.logger       = Logger("", None)
+        self.logger = Logger("", None)
     
-        # Some settings needed for handling dataset images
-        target_resolution = (224, 224)
+        # Some default transformations 
+        #Standard normalization for pretrained networks on ImageNet
+        normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        )
+
         self.transform_test = transforms.Compose([
                     transforms.CenterCrop(178),
-                    transforms.Resize(224),
+                    transforms.Resize((224, 224)),
                     transforms.ToTensor(),
-                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                    normalize
                 ])
         self.transform_train = transforms.Compose([
                 transforms.RandomResizedCrop(
-                    target_resolution,
+                    (224, 224),
                     scale=(0.7, 1.0),
-                    ratio=(1.0, 1.3333333333333333),
+                    ratio=(1.0, 1.33),
                     interpolation=2),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                normalize
             ])
             
         # Datasets and Dataloaders
@@ -62,26 +65,20 @@ class CelebATrain:
         
         
     def initialize_datasets_loaders(self):
-        ##### FORSE DOWNLOAD=FALSE, CHIEDERE A JAC #####
         self.train_dataset = CelebADataset(
-                # raw_data_path=self.args.dataset_dir,
                 root='data/',
                 split="train",
                 transform=self.transform_train,
-                download=True
-
             )
         self.val_dataset = CelebADataset(
                 root='data/',
                 split="valid",                     
-                transform = self.transform_train, 
-                download = True,            
+                transform = self.transform_train,          
             )
         self.test_dataset = CelebADataset(
                 root='data/',
                 split="test",                     
-                transform = self.transform_test, 
-                download = True,            
+                transform = self.transform_test,            
             )
 
         # Dataloaders
@@ -121,7 +118,7 @@ class CelebATrain:
         
         transform_data_to_mask = transforms.Compose([
             transforms.CenterCrop(178),
-            transforms.Resize(224),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
@@ -156,8 +153,6 @@ class CelebATrain:
                     original_image = Image.open(original_path).convert('RGB')
                     image_mask = np.expand_dims(cv2.resize(mask, dsize=original_image.size, interpolation=cv2.INTER_NEAREST), axis=-1)
                     masked_image = np.array(original_image) * image_mask
-                    #masked_images = image*mask
-                    #masked_images.numpy()
                     path=original_path.replace("train", "masked")
                     im = Image.fromarray(masked_image.astype(np.uint8))
                     im.save(path)
@@ -242,13 +237,13 @@ class CelebATrain:
         resume_epoch = 0
         self.best_accuracy=-math.inf
         if(best_resume_checkpoint_path!=None and last_resume_checkpoint_path!=None):
-            checkpoint = torch.load("last_erm_model.pt")
+            checkpoint = torch.load(last_resume_checkpoint_path)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             #self.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             resume_epoch = checkpoint['epoch'] + 1
 
-            checkpoint = torch.load("best_erm_model.pt")
+            checkpoint = torch.load(best_resume_checkpoint_path)
             self.best_accuracy=checkpoint['accuracy']
         
 
