@@ -25,7 +25,7 @@ class BackgroundChallenge_Train:
         #LOSS FUNCTION
         self.loss_function= nn.CrossEntropyLoss()
         #MODEL
-        self.model = ResNet50(pretrained=True, num_classes=9)
+        self.model = ResNet50(num_classes=9,pretrained=True)
         self.model.to(device)
         #OPTIMIZER
         self.optimizer    = optim.SGD(
@@ -44,8 +44,8 @@ class BackgroundChallenge_Train:
         #LOGGER
         self.logger       = Logger("", None)
     
-        # Some settings needed for handling dataset images
-        target_resolution = (224, 224)
+        # Some default transformations 
+        # Standard normalization for pretrained networks on ImageNet
         self.transform_test = transforms.Compose([
                     transforms.Resize(224),
                     transforms.ToTensor(),
@@ -162,23 +162,22 @@ class BackgroundChallenge_Train:
             os.mkdir(os.path.join(masked_data_dir,"07_primate"))
             os.mkdir(os.path.join(masked_data_dir,"08_fish"))
 
-            #maskedimg = torch.empty(1,3,224,224)
+            
             for data in tqdm(self.train_loader):
-                # Creazione Heat-Map per batch
-                i1,i2,i3 = data[0],data[1],data[2]
+                # Creation Heat-Map for each batch
+                images,data_paths,labels = data[0],data[1],data[2]
                 
-                hm = heat_map_generator(i1)
+                hm = heat_map_generator(images)
         
-                # Creazione Maschera
+                # Mask Creation
                 mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
                 mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
                 mask_threshold_value = mask_mean_value + 2 * mask_std_value
                 masks = np.where(hm > mask_threshold_value, 0, 1)
                 
 
-                # Applicazione Maschera su immagini del batch
-                
-                for image,mask,original_path in zip(data[0],masks,data[1]):
+                # Mask application on images
+                for image,mask,original_path in zip(images,masks,data_paths):
                     
                     original_image = Image.open(original_path).convert('RGB')
                     image_mask = np.expand_dims(cv2.resize(mask, dsize=original_image.size, interpolation=cv2.INTER_NEAREST), axis=-1)

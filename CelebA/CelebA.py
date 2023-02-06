@@ -13,7 +13,8 @@ data_split = {
     2: 'test'
 }
 
-#SubClass of CelebA (that is subclass of Dataset) that takes the CelebA dataset and perform operation on it
+#SubClass of Dataset that takes the CelebA dataset stored in the folder
+#indicated by the parameter "root" and perform operation on it
 class CelebADataset(Dataset):
     def __init__(
             self,
