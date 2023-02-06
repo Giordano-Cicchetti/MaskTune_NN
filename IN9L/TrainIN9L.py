@@ -47,13 +47,13 @@ class BackgroundChallenge_Train:
         # Some default transformations 
         # Standard normalization for pretrained networks on ImageNet
         self.transform_test = transforms.Compose([
-                    transforms.Resize(224),
+                    transforms.Resize((224,224)),
                     transforms.ToTensor(),
                     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                 ])
         self.transform_train = transforms.Compose([
                 transforms.RandomResizedCrop(
-                    target_resolution,
+                    (224,224),
                     scale=(0.7, 1.0),
                     ratio=(1.0, 1.3333333333333333),
                     interpolation=2),
