@@ -2,9 +2,10 @@ from torch.utils.data import Dataset
 from PIL import Image
 from glob import glob
 from tqdm import tqdm
-
 import os
 
+#SubClass of Dataset that takes the IN9L dataset stored in the folder
+#indicated by the parameter "root" and perform operation on it
 class IN9L_dataset(Dataset):
     def __init__(
             self,
@@ -17,12 +18,13 @@ class IN9L_dataset(Dataset):
         self.data_path = []
         self.targets = []
         self.transform = transform
+        #Determine the raw_img data directory based on the dataset we want to create
         if split == 'train' or split == 'val':
             self.raw_img_data_dir = os.path.join(root, split)
         else:
             self.raw_img_data_dir = os.path.join(
                 root, split, 'val')
-
+        #Create the variables data_path and targets
         self.data_path = []
         self.targets = []
         data_class_names = sorted(os.listdir(self.raw_img_data_dir))
@@ -42,14 +44,12 @@ class IN9L_dataset(Dataset):
 
    
     def __getitem__(self, index: int):
-        """
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (image, img_file_path, target) where target is index of the target class.
-        """
+        # Using index, you take image and label related to that value
         target = self.targets[index]
-        img = Image.open(self.data_path[index])
+        path = self.data_path[index]
+        img = Image.open(path)
         if self.transform is not None:
             img = self.transform(img)
-        return img, self.data_path[index], target
+
+        #Return (img, data_path, target)
+        return img, path , target
