@@ -48,8 +48,7 @@ class Cifar10Train:
                 last_epoch=-1,
             )
     
-        # Some settings needed for handling dataset images
-        
+        # transformations for dataset images
         self.transform_test = transforms.Compose([transforms.ToTensor()])
         self.transform_train = transforms.Compose(
             [
@@ -58,8 +57,7 @@ class Cifar10Train:
                 transforms.ToTensor(),
             ]
         )
-        transform_data_to_mask = transforms.Compose(
-            [transforms.ToTensor(), ])
+
             
         # Datasets and Dataloaders
         self.initialize_datasets_loaders()
@@ -88,14 +86,14 @@ class Cifar10Train:
             )
         
         #Split Train dataset and build validation dataset
-        num_train = len(self.train_dataset)
-        indices = list(range(num_train))
-        split = int(np.floor(0.2 * num_train))
+        dimens_train = len(self.train_dataset)
+        indices = list(range(dimens_train))
+        split = int(np.floor(0.2 * dimens_train))
         np.random.seed(50)
         np.random.shuffle(indices)
-        train_idx, val_idx = indices[split:], indices[:split]
-        self.train_sampler = SubsetRandomSampler(train_idx)
-        self.val_sampler = SubsetRandomSampler(val_idx)
+        last_train_index, first_val_index = indices[split:], indices[:split]
+        self.train_sampler = SubsetRandomSampler(last_train_index)
+        self.val_sampler = SubsetRandomSampler(first_val_index)
 
         # Dataloaders
         self.train_loader = torch.utils.data.DataLoader(
@@ -145,24 +143,24 @@ class Cifar10Train:
 
         masked_data=[]
         masked_labels=[]
-        #maskedimg = torch.empty(1,3,224,224)
+        
+
+        # iteration over the batches
         for image,label in tqdm(zip(self.train_dataset.data,self.train_dataset.targets),total=len(self.train_dataset.data)):
-            # Creazione Heat-Map per image
+            
+            # build Heat-Map for each batch image
             image= transform_data_to_mask(image)
             image= torch.unsqueeze(image,0)
             image= image.to(self.device)
-            
             hm = heat_map_generator(image)
            
-        
-            # Creazione Maschera
+            # build mask for each batch image
             mask_mean_value = np.nanmean(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
             mask_std_value = np.nanstd(np.where(hm > 0, hm, np.nan), axis=(1, 2))[:, None, None]
             mask_threshold_value = mask_mean_value + 2 * mask_std_value
-            mask = np.where(hm > mask_threshold_value, 0, 1)
-                
+            mask = np.where(hm > mask_threshold_value, 0, 1)     
 
-            # Applicazione Maschera su immagine
+            # Apply the mask
             masked_image = np.array(image.cpu()) * mask
             masked_image = masked_image[0]
             masked_image = np.transpose(masked_image,(1,2,0))
@@ -171,10 +169,11 @@ class Cifar10Train:
             masked_data.append(masked_image)
             masked_labels.append(label)
             
-        
+
         self.masked_dataset.data=np.asarray(masked_data)
         self.masked_dataset.targets=masked_labels
-
+        
+        # build the loader
         self.masked_loader= torch.utils.data.DataLoader(
             self.masked_dataset,
             batch_size=128,
@@ -300,10 +299,7 @@ class Cifar10Train:
         )
         self.logger.info("-" * 10 + f"Test accuracy ={accuracy}" +"-" * 10, print_msg=True)
 
-        
 
-#TO DO MaskData
-#TO DO Test selective classification
 
 
 
