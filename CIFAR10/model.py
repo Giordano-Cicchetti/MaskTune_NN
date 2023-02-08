@@ -56,16 +56,13 @@ class BasicBlock(nn.Module):
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != planes:
-            self.shortcut = LambdaLayer(lambda x:
+            self.shortcut = LambdaLayer(lambda x:       
                                             F.pad(x[:, :, ::2, ::2], (0, 0, 0, 0, planes//4, planes//4), "constant", 0))
 
 
     def forward(self, x):
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = F.relu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
         out += self.shortcut(x)
         out = F.relu(out)
         return out
@@ -105,14 +102,21 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = F.relu(out)
+        # 1-st layer
+        out = F.relu(self.bn1(self.conv1(x)))
+
+        # 2-nd to 11-th layers
         out = self.layer1(out)
+
+        # 12-th to 21-st layers
         out = self.layer2(out)
+
+        # 22-nd to 31-st layers
         out = self.layer3(out)
+
         out = F.avg_pool2d(out, out.size()[3])
         out = out.view(out.size(0), -1)
+        # 32-nd layer
         out = self.linear(out)
         return out
 
